@@ -3,12 +3,12 @@
 import math as _math
 import pygame
 from .sprite import Sprite
-from ..io import convert_pos
+from ..io.screen import convert_pos
 from ..utils import color_name_to_rgb as _color_name_to_rgb
 
 
 class Box(Sprite):
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         color="black",
         x=0,
@@ -66,6 +66,9 @@ class Box(Sprite):
             )
 
             self.original_image.set_alpha(self._transparency * 2.55)
+            self.original_image = pygame.transform.rotate(
+                self.original_image, self._angle
+            )
 
             self.rect = self.original_image.get_rect()
             pos = convert_pos(self.x, self.y)

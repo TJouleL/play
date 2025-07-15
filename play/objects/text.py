@@ -3,7 +3,7 @@
 import os
 import pygame
 from .sprite import Sprite
-from ..io import convert_pos
+from ..io.screen import convert_pos
 from ..utils import color_name_to_rgb as _color_name_to_rgb
 from ..io.logging import play_logger
 
@@ -33,7 +33,7 @@ class Text(Sprite):
 
         self._size = size
         self._angle = angle
-        self.transparency = transparency
+        self.transparency = transparency / 100
 
         self._is_clicked = False
         self._is_hidden = False
@@ -51,7 +51,9 @@ class Text(Sprite):
             self._image = self._pygame_font.render(
                 self._words, True, _color_name_to_rgb(self._color)
             )
-            self.rect = self.image.get_rect()
+            # Apply transparency
+            self._image.set_alpha(int(self.transparency * 255))
+            self.rect = self._image.get_rect()
             self.rect.topleft = (
                 pos[0] - self.rect.width // 2,
                 pos[1] - self.rect.height // 2,

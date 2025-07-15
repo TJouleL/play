@@ -1,7 +1,7 @@
 """This module contains the mouse loop."""
 
-from ..callback.callback_helpers import run_callback
 from ..callback import callback_manager, CallbackType
+from ..callback.callback_helpers import run_callback
 
 
 class MouseState:  # pylint: disable=too-few-public-methods
@@ -12,7 +12,7 @@ class MouseState:  # pylint: disable=too-few-public-methods
 mouse_state = MouseState()
 
 
-def _handle_mouse_loop():
+async def _handle_mouse_loop():
     """Handle mouse events in the game loop."""
     ####################################
     # @mouse.when_clicked callbacks

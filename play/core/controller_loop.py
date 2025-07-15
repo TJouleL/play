@@ -27,7 +27,7 @@ def _handle_controller_events(event):
         controller_button_released = True
 
 
-def _handle_controller():  # pylint: disable=too-many-branches
+async def _handle_controller():  # pylint: disable=too-many-branches
     """Handle controller events in the game loop."""
     ############################################################
     # @controller.when_button_pressed and @controller.when_any_button_pressed
@@ -55,6 +55,7 @@ def _handle_controller():  # pylint: disable=too-many-branches
                     if controllers.get_button(callback.controller, button) == 1:
                         run_callback(callback, ["button_number"], [], [], button)
         controller_button_pressed = False
+
     ############################################################
     # @controller.when_button_released
     ############################################################
