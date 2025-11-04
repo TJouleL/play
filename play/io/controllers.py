@@ -8,16 +8,17 @@ from pygame.joystick import (
 )
 
 from ..callback import callback_manager, CallbackType
-from ..utils.async_helpers import _make_async
+from ..utils.async_helpers import make_async
 from ..callback.callback_helpers import run_async_callback
 
 pygame.joystick.init()
 
 
-def _when_button(index: int, released: bool, *buttons: list[int | list[int]] | None):
+def when_button(index: int, released: bool, *buttons: list[int | list[int]] | None):
     """A decorator that runs a function when a button on a controller is pressed.
     :param index: The index of the controller.
-    :param button: The index of the button.
+    :param released: Whether the button is released (True) or pressed (False).
+    :param buttons: The index of the button or a list of indices.
     :return: The function to run."""
     if isinstance(buttons, list):
         for button in buttons:
@@ -33,7 +34,7 @@ def _when_button(index: int, released: bool, *buttons: list[int | list[int]] | N
                         )
 
     def decorator(func):
-        async_callback = _make_async(func)
+        async_callback = make_async(func)
 
         async def any_wrapper(button_cb):
             any_wrapper.is_running = True
@@ -99,7 +100,7 @@ class _Controllers:
         :return: A list of all controllers."""
         return self._controllers
 
-    def get_numaxes(self, index) -> int:
+    def get_num_axes(self, index) -> int:
         """Get the number of axes on the controller at the specified index.
         :param index: The index of the controller.
         :return: The number of axes on the controller at the specified index."""
@@ -113,7 +114,7 @@ class _Controllers:
         """
         return self._controllers[index].get_axis(axis)
 
-    def get_numbuttons(self, index) -> int:
+    def get_num_buttons(self, index) -> int:
         """Get the number of buttons on the controller at the specified index.
         :param index: The index of the controller.
         :return: The number of buttons on the controller at the specified index."""
@@ -127,7 +128,7 @@ class _Controllers:
         """
         return self._controllers[index].get_button(button)
 
-    def get_numhats(self, index) -> int:
+    def get_num_hats(self, index) -> int:
         """Get the number of hats on the controller at the specified index.
         :param index: The index of the controller.
         :return: The number of hats on the controller at the specified index."""
@@ -141,7 +142,7 @@ class _Controllers:
         """
         return self._controllers[index].get_hat(hat)
 
-    def get_numballs(self, index) -> int:
+    def get_num_balls(self, index) -> int:
         """Get the number of balls on the controller at the specified index.
         :param index: The index of the controller.
         :return: The number of balls on the controller at the specified index."""
@@ -161,7 +162,7 @@ class _Controllers:
         :param index: The index of the controller.
         :param button: The index of the button.
         :return: The function to run."""
-        return _when_button(index, False, *buttons)
+        return when_button(index, False, *buttons)
 
     # @decorator
     def when_any_button_pressed(self, index):
@@ -169,7 +170,7 @@ class _Controllers:
         :param index: The index of the controller.
         :return: The function to run."""
         buttons = {"any": None}
-        return _when_button(index, False, *buttons)
+        return when_button(index, False, *buttons)
 
     # @decorator
     def when_button_released(self, index, *buttons):
@@ -177,7 +178,7 @@ class _Controllers:
         :param index: The index of the controller.
         :param button: The index of the button.
         :return: The function to run."""
-        return _when_button(index, True, *buttons)
+        return when_button(index, True, *buttons)
 
     # @decorator
     def when_any_button_released(self, index):
@@ -185,7 +186,7 @@ class _Controllers:
         :param index: The index of the controller.
         :return: The function to run."""
         buttons = {"any": None}
-        return _when_button(index, True, *buttons)
+        return when_button(index, True, *buttons)
 
     # @decorator
     def when_axis_moved(self, index, axis):
@@ -195,7 +196,7 @@ class _Controllers:
         :return: The function to run."""
 
         def decorator(func):
-            async_callback = _make_async(func)
+            async_callback = make_async(func)
 
             async def wrapper(axis, value):
                 wrapper.is_running = True
@@ -222,7 +223,7 @@ class _Controllers:
         :return: The function to run."""
 
         def decorator(func):
-            async_callback = _make_async(func)
+            async_callback = make_async(func)
 
             async def wrapper(axis, value):
                 wrapper.is_running = True

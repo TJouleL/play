@@ -4,16 +4,18 @@ import math as _math
 
 from .mouse_loop import mouse_state
 from ..callback import callback_manager, CallbackType
-from ..callback.callback_helpers import run_callback, run_async_callback
+from ..callback.callback_helpers import run_any_async_callback
 from ..globals import globals_list
-from ..io.screen import convert_pos, PYGAME_DISPLAY
 from ..io.mouse import mouse
+from ..io.screen import convert_pos
 from ..objects.line import Line
 from ..objects.sprite import point_touching_sprite
 
 
-async def _update_sprites(do_events: bool = True):  # pylint: disable=too-many-branches
-    # pylint: disable=too-many-nested-blocks
+async def update_sprites(do_events: bool = True):  # pylint: disable=too-many-branches
+    """Update all sprites in the game loop.
+    :param do_events: If True, run events for sprites. If False, only update positions.
+    """
     globals_list.sprites_group.update()
 
     for sprite in globals_list.sprites_group.sprites():
@@ -28,7 +30,6 @@ async def _update_sprites(do_events: bool = True):  # pylint: disable=too-many-b
                 sprite._y = body.position.y - (sprite.length / 2) * _math.sin(angle)
                 sprite._x1 = body.position.x + (sprite.length / 2) * _math.cos(angle)
                 sprite._y1 = body.position.y + (sprite.length / 2) * _math.sin(angle)
-                # sprite._length, sprite._angle = sprite._calc_length_angle()
             else:
                 if (
                     str(body.position.x) != "nan"
@@ -37,9 +38,7 @@ async def _update_sprites(do_events: bool = True):  # pylint: disable=too-many-b
                 if str(body.position.y) != "nan":
                     sprite._y = body.position.y
 
-            sprite.angle = (
-                angle  # needs to be .angle, not ._angle so surface gets recalculated
-            )
+            sprite.angle = angle
             sprite.physics._x_speed, sprite.physics._y_speed = body.velocity
 
         sprite._is_clicked = False
@@ -52,33 +51,23 @@ async def _update_sprites(do_events: bool = True):  # pylint: disable=too-many-b
         #################################
         # All @sprite.when_touching events
         #################################
-        if sprite._touching_callback[0]:
-            await run_async_callback(sprite._touching_callback[0], [], [])
-        if sprite._touching_callback[1]:
-            await run_async_callback(sprite._touching_callback[1], [], [])
+        await run_any_async_callback(sprite._touching_callback, [], [])
+
+        await run_any_async_callback(sprite._stopped_callback, [], [])
+        sprite._stopped_callback = [None, None]
 
         #################################
         # @sprite.when_clicked events
         #################################
-        if mouse.is_clicked:
-            if (
-                point_touching_sprite(convert_pos(mouse.x, mouse.y), sprite)
-                and mouse_state.click_happened_this_frame
-            ):
-                # only run sprite clicks on the frame the mouse was clicked
-                sprite._is_clicked = True
-                if callback_manager.get_callback(
-                    CallbackType.WHEN_CLICKED_SPRITE, id(sprite)
-                ):
-                    for callback in callback_manager.get_callback(
-                        CallbackType.WHEN_CLICKED_SPRITE, id(sprite)
-                    ):
-                        if not callback.is_running:
-                            run_callback(
-                                callback,
-                                [],
-                                [],
-                            )
+        if (
+            mouse.is_clicked
+            and point_touching_sprite(convert_pos(mouse.x, mouse.y), sprite)
+            and mouse_state.click_happened
+        ):
+            sprite._is_clicked = True
+            callback_manager.run_callbacks(
+                CallbackType.WHEN_CLICKED_SPRITE, callback_discriminator=id(sprite)
+            )
 
     globals_list.sprites_group.update()
-    globals_list.sprites_group.draw(PYGAME_DISPLAY)
+    globals_list.sprites_group.draw(globals_list.display)

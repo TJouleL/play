@@ -7,13 +7,13 @@ import pygame
 import pymunk as _pymunk
 
 from ..callback import callback_manager, CallbackType
-from ..callback.callback_helpers import run_async_callback, run_callback
+from ..callback.callback_helpers import run_async_callback
 from ..callback.collision_callbacks import collision_registry, CollisionType
 from ..globals import globals_list
 from ..io.screen import screen
 from ..physics import physics_space, Physics as _Physics
-from ..utils import _clamp
-from ..utils.async_helpers import _make_async
+from ..utils import clamp as _clamp
+from ..utils.async_helpers import make_async
 
 
 def _sprite_touching_sprite(a, b):
@@ -32,7 +32,11 @@ def point_touching_sprite(point, sprite):
     return sprite.rect.collidepoint(point)
 
 
-_should_ignore_update = ["_should_recompute", "rect", "_image", "image"]
+_should_ignore_update = [
+    "_should_recompute",
+    "rect",
+    "_image",
+]
 
 
 class Sprite(
@@ -47,6 +51,7 @@ class Sprite(
 
         self._dependent_sprites = []
         self._touching_callback = [None, None]
+        self._stopped_callback = [None, None]
 
         self._image = image
         self.physics: _Physics | None = None
@@ -84,52 +89,43 @@ class Sprite(
                 return True
         return False
 
-    def update(self):  # pylint: disable=too-many-nested-blocks, too-many-branches
+    def update(self):  # pylint: disable=too-many-branches
         """Update the sprite."""
         if not self._should_recompute:
             return
 
-        if callback_manager.get_callback(CallbackType.WHEN_TOUCHING, id(self)):
-            # Check if we are touching any other sprites
-            for callback, b in callback_manager.get_callback(
-                CallbackType.WHEN_TOUCHING, id(self)
-            ):
-                if self.is_touching(b):
-                    if self._touching_callback[CollisionType.SPRITE] is None:
-                        self._touching_callback[CollisionType.SPRITE] = callback
-                    continue
-                if callback_manager.get_callback(
-                    CallbackType.WHEN_STOPPED_TOUCHING, id(self)
-                ):
-                    for (
-                        stopped_callback,
-                        stopped_b,
-                    ) in callback_manager.get_callback(
-                        CallbackType.WHEN_STOPPED_TOUCHING, id(self)
-                    ):
-                        if stopped_b == b and callback in self._touching_callback:
-                            run_callback(stopped_callback, [], [])
-                if callback in self._touching_callback:
-                    self._touching_callback[CollisionType.SPRITE] = None
-
-        if callback_manager.get_callback(  # pylint: disable=too-many-nested-blocks
-            CallbackType.WHEN_TOUCHING_WALL, id(self)
+        # Check if we are touching any other sprites
+        for callback, b in callback_manager.get_callback(
+            [CallbackType.WHEN_TOUCHING, CallbackType.WHEN_STOPPED_TOUCHING],
+            id(self),
         ):
-            for callback in callback_manager.get_callback(
-                CallbackType.WHEN_TOUCHING_WALL, id(self)
-            ):
-                if self.is_touching_wall():
-                    if self._touching_callback[CollisionType.WALL] is None:
+            if self.physics and b.physics:
+                continue
+            if self.is_touching(b):
+                if not callable(self._touching_callback[CollisionType.SPRITE]):
+                    if callback.type == CallbackType.WHEN_TOUCHING:
+                        self._touching_callback[CollisionType.SPRITE] = callback
+                    else:
+                        self._touching_callback[CollisionType.SPRITE] = True
+                continue
+            if callable(self._touching_callback[CollisionType.SPRITE]):
+                self._touching_callback[CollisionType.SPRITE] = None
+                self._stopped_callback[CollisionType.SPRITE] = callback
+
+        for callback in callback_manager.get_callback(
+            [CallbackType.WHEN_TOUCHING_WALL, CallbackType.WHEN_STOPPED_TOUCHING_WALL],
+            id(self),
+        ):
+            if self.is_touching_wall():
+                if not callable(self._touching_callback[CollisionType.WALL]):
+                    if callback.type == CallbackType.WHEN_TOUCHING_WALL:
                         self._touching_callback[CollisionType.WALL] = callback
-                elif callback in self._touching_callback:
-                    if callback_manager.get_callback(
-                        CallbackType.WHEN_STOPPED_TOUCHING_WALL, id(self)
-                    ):
-                        for stopped_callback in callback_manager.get_callback(
-                            CallbackType.WHEN_STOPPED_TOUCHING_WALL, id(self)
-                        ):
-                            run_callback(stopped_callback, [], [])
-                    self._touching_callback[CollisionType.WALL] = None
+                    else:
+                        self._touching_callback[CollisionType.WALL] = True
+                continue
+            if callable(self._touching_callback[CollisionType.WALL]):
+                self._touching_callback[CollisionType.WALL] = None
+                self._stopped_callback[CollisionType.WALL] = callback
 
         if self._is_hidden:
             self._image = pygame.Surface((0, 0), pygame.SRCALPHA)
@@ -247,6 +243,7 @@ You might want to look in your code where you're setting transparency and make s
     def size(self, percent):
         """Set the size of the sprite.
         :param percent: The size of the sprite as a percentage."""
+        self._should_recompute = True
         self._size = percent
         if self.physics:
             self.physics._remove()
@@ -434,7 +431,7 @@ You might want to look in your code where you're setting transparency and make s
         :param callback: The function to run.
         :param call_with_sprite: Whether to call the function with the sprite as an argument.
         """
-        async_callback = _make_async(callback)
+        async_callback = make_async(callback)
 
         async def wrapper():
             wrapper.is_running = True
@@ -466,7 +463,7 @@ You might want to look in your code where you're setting transparency and make s
         """
 
         def decorator(func):
-            async_callback = _make_async(func)
+            async_callback = make_async(func)
 
             if self.physics:
                 for sprite in sprites:
@@ -506,7 +503,7 @@ You might want to look in your code where you're setting transparency and make s
         """
 
         def decorator(func):
-            async_callback = _make_async(func)
+            async_callback = make_async(func)
 
             if self.physics:
                 for sprite in sprites:
@@ -546,7 +543,7 @@ You might want to look in your code where you're setting transparency and make s
         :param callback: The function to run.
         BEWARE: This function will yield the game loop until the given function returns.
         """
-        async_callback = _make_async(callback)
+        async_callback = make_async(callback)
 
         async def wrapper():
             await run_async_callback(
@@ -574,7 +571,7 @@ You might want to look in your code where you're setting transparency and make s
         """Run a function when the sprite is no longer touching the edge of the screen.
         :param callback: The function to run.
         """
-        async_callback = _make_async(callback)
+        async_callback = make_async(callback)
 
         async def wrapper():
             await run_async_callback(
@@ -612,10 +609,9 @@ You might want to look in your code where you're setting transparency and make s
     def clone(self):
         """Clone the sprite.
         :return: The cloned sprite."""
-        # TODO: make work with physics
         return self.__class__(image=self.image)
 
-    def start_physics(  # pylint: disable=too-many-arguments
+    def start_physics(
         self,
         can_move=True,
         stable=False,
@@ -624,7 +620,7 @@ You might want to look in your code where you're setting transparency and make s
         obeys_gravity=True,
         bounciness=1.0,
         mass=10,
-        friction=1.0,
+        friction=0,
     ):
         """Start the physics simulation for this sprite.
         :param can_move: Whether the object can move.

@@ -1,112 +1,90 @@
 """This module contains the controller loop, which handles controller events in the game loop."""
 
-import pygame  # pylint: disable=import-error
+import pygame
 
 from ..callback import callback_manager, CallbackType
-from ..io.controllers import (
-    controllers,
-)
-from ..callback.callback_helpers import run_callback
-
-controller_axis_moved = False  # pylint: disable=invalid-name
-controller_button_pressed = False  # pylint: disable=invalid-name
-controller_button_released = False  # pylint: disable=invalid-name
 
 
-def _handle_controller_events(event):
+class ControllerState:
+    """Class to manage the state of the controller."""
+
+    def __init__(self):
+        self.buttons_pressed = {}
+        self.buttons_released = {}
+        self.axes_moved = {}
+
+    def clear(self):
+        """Clear the controller state for the next frame."""
+        self.buttons_pressed.clear()
+        self.buttons_released.clear()
+        self.axes_moved.clear()
+
+    def any(self):
+        """Check if any controller event has occurred."""
+        return self.buttons_pressed or self.buttons_released or self.axes_moved
+
+
+controller_state = ControllerState()
+
+
+def handle_controller_events(event):
     """Handle controller events in the game loop.
     :param event: The event to handle."""
     if event.type == pygame.JOYAXISMOTION:  # pylint: disable=no-member
-        global controller_axis_moved
-        controller_axis_moved = True
+        if event.instance_id not in controller_state.axes_moved:
+            controller_state.axes_moved[event.instance_id] = []
+        controller_state.axes_moved[event.instance_id].append(
+            {"axis": event.axis, "value": round(event.value)}
+        )
     if event.type == pygame.JOYBUTTONDOWN:  # pylint: disable=no-member
-        global controller_button_pressed
-        controller_button_pressed = True
+        if event.instance_id not in controller_state.buttons_pressed:
+            controller_state.buttons_pressed[event.instance_id] = []
+        controller_state.buttons_pressed[event.instance_id].append(event.button)
     if event.type == pygame.JOYBUTTONUP:
-        global controller_button_released
-        controller_button_released = True
+        if event.instance_id not in controller_state.buttons_released:
+            controller_state.buttons_released[event.instance_id] = []
+        controller_state.buttons_released[event.instance_id].append(event.button)
 
 
-async def _handle_controller():  # pylint: disable=too-many-branches
+async def handle_controller():  # pylint: disable=too-many-branches
     """Handle controller events in the game loop."""
     ############################################################
     # @controller.when_button_pressed and @controller.when_any_button_pressed
     ############################################################
-    global controller_button_pressed, controller_button_released, controller_axis_moved
-    if controller_button_pressed and callback_manager.get_callbacks(
-        CallbackType.WHEN_CONTROLLER_BUTTON_PRESSED
-    ):
-        controller_button_callbacks = callback_manager.get_callbacks(
-            CallbackType.WHEN_CONTROLLER_BUTTON_PRESSED
-        )
-        if "any" in controller_button_callbacks:
-            for callback in controller_button_callbacks["any"]:
-                for button in range(controllers.get_numbuttons(callback.controller)):
-                    if (
-                        controllers.get_controller(callback.controller).get_button(
-                            button
-                        )
-                        == 1
-                    ):
-                        run_callback(callback, ["button_number"], [], button)
-        for button, callbacks in controller_button_callbacks.items():
-            if button != "any":
-                for callback in callbacks:
-                    if controllers.get_button(callback.controller, button) == 1:
-                        run_callback(callback, ["button_number"], [], [], button)
-        controller_button_pressed = False
+    if controller_state.buttons_pressed:
+        for controller_id, buttons in controller_state.buttons_pressed.items():
+            await callback_manager.run_callbacks_with_filter(
+                callback_type=CallbackType.WHEN_CONTROLLER_BUTTON_PRESSED,
+                activated_states=buttons,
+                required_args=["button"],
+                property_filter={"controller": controller_id},
+            )
+        controller_state.buttons_pressed.clear()
 
     ############################################################
     # @controller.when_button_released
     ############################################################
-    if controller_button_released and callback_manager.get_callbacks(
-        CallbackType.WHEN_CONTROLLER_BUTTON_RELEASED
-    ):
-        released_callbacks = callback_manager.get_callbacks(
-            CallbackType.WHEN_CONTROLLER_BUTTON_RELEASED
-        )
-        if "any" in released_callbacks:
-            for callback in released_callbacks["any"]:
-                for button in range(controllers.get_numbuttons(callback.controller)):
-                    if (
-                        controllers.get_controller(callback.controller).get_button(
-                            button
-                        )
-                        == 0
-                    ):
-                        run_callback(callback, ["button_number"], [], button)
-        for button, callbacks in released_callbacks.items():
-            for callback in callbacks:
-                if controllers.get_button(callback.controller, button) == 0:
-                    run_callback(callback, ["button_number"], [], button)
-        controller_button_released = False
+    if controller_state.buttons_released:
+        for controller_id, buttons in controller_state.buttons_released.items():
+            await callback_manager.run_callbacks_with_filter(
+                callback_type=CallbackType.WHEN_CONTROLLER_BUTTON_RELEASED,
+                activated_states=buttons,
+                required_args=["button"],
+                property_filter={"controller": controller_id},
+            )
+        controller_state.buttons_released.clear()
+
     ############################################################
     # @controller.when_axis_moved
     ############################################################
-    if controller_axis_moved and callback_manager.get_callbacks(
-        CallbackType.WHEN_CONTROLLER_AXIS_MOVED
-    ):
-        axis_moved_callbacks = callback_manager.get_callbacks(
-            CallbackType.WHEN_CONTROLLER_AXIS_MOVED
-        )
-        if "any" in axis_moved_callbacks:
-            for callback in axis_moved_callbacks["any"]:
-                for axis in range(controllers.get_numaxes(callback.controller)):
-                    run_callback(
-                        callback,
-                        ["axis_number", "axis_value"],
-                        [],
-                        axis,
-                        controllers.get_axis(callback.controller, axis),
-                    )
-        for axis, callbacks in axis_moved_callbacks.items():
-            if axis != "any":
-                for callback in callbacks:
-                    run_callback(
-                        callback,
-                        ["axis_number", "axis_value"],
-                        [],
-                        axis,
-                        controllers.get_axis(callback.controller, axis),
-                    )
-        controller_axis_moved = False
+    if controller_state.axes_moved:
+        for axes_events in controller_state.axes_moved.values():
+            for axis_event in axes_events:
+                await callback_manager.run_callbacks_with_filter(
+                    CallbackType.WHEN_CONTROLLER_AXIS_MOVED,  # callback type
+                    [axis_event["axis"]],  # activated states
+                    axis_event["value"],  # value
+                    required_args=["axis", "value"],
+                    property_filter={"axis": axis_event["axis"]},
+                )
+        controller_state.axes_moved.clear()
