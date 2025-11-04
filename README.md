@@ -27,6 +27,8 @@ We welcome contributions! If you'd like to contribute, please follow these steps
 
 - Open a Pull Request.
 
+Good luck and happy coding!
+
 ## License
 This project is licensed under the [MIT License](LICENSE)
 
