@@ -12,14 +12,14 @@ with open(HERE / 'requirements.txt') as f:
 
 # This call to setup() does all the work
 setup(
-    name="corderius-play",
-    version="2.6.1",
+    name="coderius-play",
+    version="3.0.0",
     description="The easiest way to make games and media projects in Python.",
     long_description=README,
     long_description_content_type="text/markdown",
-    url="https://github.com/Corderius-College-Amersfoort/play",
+    url="https://github.com/Coderius-Education/play",
     author="koen1711",
-    author_email="koenvurk1711@gmail.com",
+    author_email="koen@coderius.nl",
     license="MIT",
     classifiers=[
         "License :: OSI Approved :: MIT License",
