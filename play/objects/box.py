@@ -1,6 +1,5 @@
 """This module contains the Box class, which represents a box in the game."""
 
-import math as _math
 import pygame
 from .sprite import Sprite
 from ..io.screen import convert_pos
@@ -65,16 +64,12 @@ class Box(Sprite):
             )
 
             draw_image.set_alpha(round(self._transparency * 255 / 100))
-            draw_image = pygame.transform.rotate(draw_image, self._angle)
+            draw_image = pygame.transform.rotate(draw_image, self.angle)
 
             self.rect = draw_image.get_rect()
             pos = convert_pos(self.x, self.y)
-            self.rect.x = pos[0] - self._width // 2
-            self.rect.y = pos[1] - self._height // 2
-
-            angle_deg = -_math.degrees(self.physics._pymunk_body.angle)
-            self.image = pygame.transform.rotate(draw_image, angle_deg)
-            self.rect = self.image.get_rect(center=self.rect.center)
+            self.rect.center = pos
+            self.image = draw_image
         super().update()
 
     ##### width #####
